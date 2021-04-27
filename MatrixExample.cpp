@@ -11,7 +11,7 @@ using namespace arma;
 
 //int argc, char** argv
 //HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow
-int main(int argc, char** argv)
+int WinMain()
 {
   cout << "Armadillo version: " << arma_version::as_string() << endl;
   
