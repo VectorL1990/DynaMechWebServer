@@ -14,16 +14,16 @@ SRCS = $(CPP_FILES) $(C_FILES)
 
 BASE = $(basename $(SRCS))
 
-OBJS = $(addsuffix .o, $(addprefixobj/,$(BASE)))
+OBJS = $(addsuffix .o, $(BASE))
 
-DEPS = $(addsuffix .d, $(addprefixdep/,$(BASE)))
+DEPS = $(addsuffix .d, $(addprefix dep/,$(BASE)))
 
 #包含公共Make规则
 include $(top_srcdir)/makeinclude/Make.rules
 
 #额外需要包含的头文件的目录位置
 INCLUDEDIR := $(INCLUDEDIR)\
-	-I$(top_srcdir)/src/common/inc\
+	-I$(top_srcdir)/include\
 
 #所有要包含的静态库的名称
 LIBS := -lopenblas
@@ -32,3 +32,14 @@ LIBS := -lopenblas
 $(TARGET):$(OBJS) $(LIBS)
 	-rm -f $@
 	$(CXX) -o $(TARGET) $(INCLUDEDIR) $(LDFLAGS) $(OBJS) $(LIBS)
+
+#objects = MatrixExample.o
+#MatrixExample : $(objects) $(LIBS)
+#	#-rm -f $@
+#	$(CXX) -o $(TARGET) $(INCLUDEDIR) $(LDFLAGS) $(objects) $(LIBS)
+
+MatrixExample.o : MatrixExample.cpp
+	g++ $(INCLUDEDIR) -c MatrixExample.cpp
+
+clean:
+	rm *.o
