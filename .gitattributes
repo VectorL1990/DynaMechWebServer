@@ -1,2 +1,2 @@
-lib_win64/libopenblas.a filter=lfs diff=lfs merge=lfs -text
-lib_win64/libopenblas.dll filter=lfs diff=lfs merge=lfs -text
+*.a filter=lfs diff=lfs merge=lfs -text
+*.dll filter=lfs diff=lfs merge=lfs -text
