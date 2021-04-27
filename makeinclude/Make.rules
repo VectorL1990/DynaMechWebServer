@@ -20,7 +20,7 @@ VPATH := $(LIBDIR)
 
 #设置编译程序时查找头文件的目录位置
 INCLUDEDIR := -I.\
-    -I../inc\
+    -I$(top_srcdir)/include
 
 #声明要生成的目标文件，具体规则在具体的Makefile中定义
 $(TARGET):
