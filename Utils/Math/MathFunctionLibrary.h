@@ -17,5 +17,7 @@ public:
 //////// Coordinate related calculation
     mat GetCoordTransformMatrix(Vec3d V1, Vec3d V2);
 
-    Vec3d GetEigenVector(mat Matrix);
+    mat GetEigenVector(mat Matrix, float EigenValue);
+
+    mat GetFinitRotationAxis(arma::mat TransposeMatrix);
 };

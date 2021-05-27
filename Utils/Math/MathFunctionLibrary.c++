@@ -18,8 +18,17 @@ mat MathFunctionLibrary::GetCoordTransformMatrix(Vec3d V1, Vec3d V2)
     return A;
 }
 
-Vec3d MathFunctionLibrary::GetEigenVector(mat Matrix)
+mat MathFunctionLibrary::GetEigenVector(mat Matrix, float EigenValue)
 {
-    colvec3 Z = 
-    mat EigenVector = solve(Matrix, colvec3(0.0));
+    mat SubtractMatrix = Matrix - EigenValue*eye<mat>(Matrix.n_rows, Matrix.n_cols);
+    mat ZeroCol(SubtractMatrix.n_cols, 1);
+    mat EigenVector = arma::solve(SubtractMatrix, ZeroCol);
+    return EigenVector;
+}
+
+mat MathFunctionLibrary::GetFinitRotationAxis(arma::mat TransposeMatrix)
+{
+    arma::mat ZeroCol(TransposeMatrix.n_cols, 1);
+    mat EigenVector = solve(TransposeMatrix, ZeroCol);
+    return EigenVector;
 }
