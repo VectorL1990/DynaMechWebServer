@@ -11,4 +11,7 @@ class ComponentNode
 public:
 
     Coordinate LocalCoordinate;
+
+    Vec3d FixRotationVec;
+    
 };
