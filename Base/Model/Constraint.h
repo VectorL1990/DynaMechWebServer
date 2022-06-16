@@ -22,9 +22,9 @@ public:
 
     Component* SecondComponent;
 
-    Vector3d FirstConstraintRelativeTranslation;
+    double FirstConstraintRelativeTranslation[3] = {0.0, 0.0, 0.0};
 
-    Vector3d SecondConstraintRelativeTranslation;
+    double SecondConstraintRelativeTranslation[3] = {0.0, 0.0, 0.0};
 
     Vector3d ComponentOffset;
 

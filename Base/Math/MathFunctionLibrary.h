@@ -15,18 +15,23 @@ protected:
 public:
     static MathFunctionLibrary* GetInstance();
 
-    MatrixXd static GetBMatrix(MatrixXd RMat, Vector3d JointTranslation);
+    void static KineticAnalyze(Model* InModel, double dT);
+
+    MatrixXd static GetGMatrix(const double EulerAngles[3]);
+
+    MatrixXd static GetRMatrix(Quaterniond RigidQuad);
+
+    MatrixXd static GetQuaternionBMatrix(MatrixXd RMat, Vector3d JointTranslation);
+
+    MatrixXd static GetEulerBMatrix(MatrixXd GMat, Vector3d JointTranslation);
 
     MatrixXd static GetDMatrix(Vector3d RefVec, MatrixXd RMat);
 
     Eigen::Matrix3d static GetSkewSymmetricMatrixByVec3(Vector3d Vec);
 
-    MatrixXd static GetRMatrix(Quaterniond RigidQuad);
+    void static AssembleJacobianMatrix(Model* InModel);
 
-    MatrixXd static GetJacobianMatrix(Component* Component1, Component* Component2, Constraint* Joint);
+    void static AssembleConstraintMatrix(Model* InModel);
 
-    MatrixXd static AssembleRowConstraintMatrix(int CompIndex1, int CompIndex2, Quaterniond CompQuat1, Quaterniond CompQuat2,
-        Vector3d CompJointTrans1, Vector3d CompJointTrans2, int totalCompNb, ConstraintType Constraint);
-
-    MatrixXd static AssembleConstraintMatrix(Model* InModel);
+    void static AssembleGamaMatrix(Model* InModel);
 };

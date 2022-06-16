@@ -1,4 +1,5 @@
 #include "MathFunctionLibrary.h"
+#include "MathConst.h"
 
 MathFunctionLibrary* MathFunctionLibrary::MathFunctionLibrarySingleton = nullptr;
 
@@ -7,31 +8,48 @@ MathFunctionLibrary* MathFunctionLibrary::GetInstance()
     return MathFunctionLibrarySingleton;
 }
 
-MatrixXd MathFunctionLibrary::GetBMatrix(MatrixXd RMat, Vector3d JointTranslation)
+void MathFunctionLibrary::KineticAnalyze(Model* InModel, double dT)
 {
-    Matrix3d SSMat = MathFunctionLibrary::GetSkewSymmetricMatrixByVec3(JointTranslation);
-    MatrixXd URMat = -2*SSMat*RMat;
-    Matrix3d IMat = Matrix3d::Identity(3, 3);
-    MatrixXd BMat(3, 7);
-    BMat << IMat, URMat;
-    return BMat;
+    while (1)
+    {
+        AssembleJacobianMatrix(InModel);
+        AssembleConstraintMatrix(InModel);
+        MatrixXd DeltaQ = InModel->CurrentJacobianMat.ldlt().solve(-InModel->CurrentConstraintArray);
+        if (DeltaQ.norm() <= IterDisplacementEpsilon || InModel->CurrentConstraintArray.norm() <= ConstraintEpsilon)
+        {
+            // Which means all components have already satisfied constraint equations
+            break;
+        }
+        else
+        {
+            MatrixXd Velocity = DeltaQ / dT;
+            AssembleGamaMatrix(InModel);
+            MatrixXd Acceleration = InModel->CurrentJacobianMat.ldlt().solve(InModel->CurrentGamaMat);
+            MatrixXd CurrentDisplacement;
+            InModel->AssembleComponentQs(CurrentDisplacement);
+            MatrixXd NextDisplacement = CurrentDisplacement + Velocity*dT + 0.5*dT*dT*Acceleration;
+            InModel->UpdateComponentDisplacements(NextDisplacement);
+        }
+    }
 }
 
-MatrixXd MathFunctionLibrary::GetDMatrix(Vector3d RefVec, MatrixXd RMat)
+MatrixXd MathFunctionLibrary::GetGMatrix(const double EulerAngles[3])
 {
-    Matrix3d ASSMat = MathFunctionLibrary::GetSkewSymmetricMatrixByVec3(RefVec);
-    MatrixXd ARMat = -2*ASSMat*RMat;
-    Matrix3d ZMat = Matrix3d::Zero(3,3);
-    MatrixXd DMat(3,7);
-    DMat << ZMat, ARMat;
-    return DMat;
-}
+    MatrixXd GMat(3, 3);
 
-Matrix3d MathFunctionLibrary::GetSkewSymmetricMatrixByVec3(Vector3d Vec)
-{
-    Eigen::Matrix3d SSM;
-    SSM << 0.0, -Vec.z(), Vec.y(), Vec.z(), 0.0, -Vec.x(), -Vec.y(), Vec.x(), 0.0;
-    return SSM;
+    GMat(0, 0) = 0.0f;
+    GMat(0, 1) = cos(EulerAngles[0]);
+    GMat(0, 2) = sin(EulerAngles[0]) * sin(EulerAngles[1]);
+
+    GMat(1, 0) = 0.0;
+    GMat(1, 1) = sin(EulerAngles[0]);
+    GMat(1, 2) = -cos(EulerAngles[0]) * sin(EulerAngles[1]);
+
+    GMat(2, 0) = 1.0;
+    GMat(2, 1) = 0.0;
+    GMat(2, 2) = cos(EulerAngles[1]);
+
+    return GMat;
 }
 
 MatrixXd MathFunctionLibrary::GetRMatrix(Quaterniond RigidQuad)
@@ -55,64 +73,154 @@ MatrixXd MathFunctionLibrary::GetRMatrix(Quaterniond RigidQuad)
     return RMat;
 }
 
-MatrixXd MathFunctionLibrary::GetJacobianMatrix(Constraint* InConstraint)
+MatrixXd MathFunctionLibrary::GetQuaternionBMatrix(MatrixXd RMat, Vector3d JointTranslation)
 {
-    MatrixXd RMat1 = GetRMatrix(InConstraint->FirstComponent->Rotation);
-    MatrixXd BMat1 = GetBMatrix(RMat1, InConstraint->FirstConstraintRelativeTranslation);
-    
-    MatrixXd RMat2 = GetRMatrix(InConstraint->SecondComponent->Rotation);
-    MatrixXd BMat2 = GetBMatrix(RMat2, InConstraint->SecondConstraintRelativeTranslation);
-
-    MatrixXd Cq1, Cq2;
-    if (InConstraint->ConstraintType == ConstraintTypeEnum::SphericalJoint)
-    {
-        Cq1 = BMat1;
-        Cq2 = BMat2;
-    }
-    else if (InConstraint->ConstraintType == ConstraintTypeEnum::CylindricalJoint)
-    {
-        MatrixXd DMati1 = GetDMatrix(InConstraint->FirstReferenceVectorList[0], RMat1);
-        MatrixXd DMatj1 = GetDMatrix(InConstraint->SecondReferenceVectorList[0], RMat2);
-        MatrixXd DMatj2 = GetDMatrix(InConstraint->SecondReferenceVectorList[1], RMat2);
-        
-        MatrixXd Cqi1 = InConstraint->SecondReferenceVectorList[0].transpose() * DMati1;
-        MatrixXd Cqi2 = InConstraint->SecondReferenceVectorList[1].transpose() * DMati1;
-        MatrixXd Cqi3 = InConstraint->SecondReferenceVectorList[0].transpose() * BMat1;
-        MatrixXd Cqi4 = InConstraint->SecondReferenceVectorList[1].transpose() * BMat1;
-
-        MatrixXd Cqj1 = InConstraint->FirstReferenceVectorList[0].transpose() * DMatj1;
-        MatrixXd Cqj2 = InConstraint->FirstReferenceVectorList[0].transpose() * DMatj2;
-        MatrixXd Cqj3 = InConstraint->ComponentOffset.transpose() * DMatj1 - InConstraint->SecondReferenceVectorList[0].transpose()*BMat2;
-        MatrixXd Cqj4 = InConstraint->ComponentOffset.transpose() * DMatj2 - InConstraint->SecondReferenceVectorList[1].transpose()*BMat2;
-    }
+    Matrix3d SSMat = MathFunctionLibrary::GetSkewSymmetricMatrixByVec3(JointTranslation);
+    MatrixXd URMat = -2*SSMat*RMat;
+    Matrix3d IMat = Matrix3d::Identity(3, 3);
+    MatrixXd BMat(3, 7);
+    BMat << IMat, URMat;
+    return BMat;
 }
 
-MatrixXd MathFunctionLibrary::AssembleRowConstraintMatrix(int CompIndex1, int CompIndex2, Quaterniond CompQuat1, Quaterniond CompQuat2,
-        Vector3d CompJointTrans1, Vector3d CompJointTrans2, int totalCompNb, ConstraintType Constraint)
+MatrixXd MathFunctionLibrary::GetEulerBMatrix(MatrixXd GMat, Vector3d JointTranslation)
 {
-    int ConstraintRowNb = 0;
-    if (Constraint == ConstraintType::SphericalJoint)
-    {
-        ConstraintRowNb = 3;
-        MatrixXd RMat1 = MathFunctionLibrary::GetRMatrix(CompQuat1);
-        MatrixXd RMat2 = MathFunctionLibrary::GetRMatrix(CompQuat2);
-
-        MatrixXd BMat1 = MathFunctionLibrary::GetBMatrix(RMat1, CompJointTrans1);
-        MatrixXd BMat2 = MathFunctionLibrary::GetBMatrix(RMat2, CompJointTrans2);
-
-        
-    }
+    MatrixXd BMat(3, 6);
+    return BMat;
 }
 
-MatrixXd MathFunctionLibrary::AssembleConstraintMatrix(Model* InModel)
+MatrixXd MathFunctionLibrary::GetDMatrix(Vector3d RefVec, MatrixXd RMat)
 {
-    for (int i = 0; i < InModel->Components.size(); i++)
+    Matrix3d ASSMat = MathFunctionLibrary::GetSkewSymmetricMatrixByVec3(RefVec);
+    MatrixXd ARMat = -2*ASSMat*RMat;
+    Matrix3d ZMat = Matrix3d::Zero(3,3);
+    MatrixXd DMat(3,7);
+    DMat << ZMat, ARMat;
+    return DMat;
+}
+
+Matrix3d MathFunctionLibrary::GetSkewSymmetricMatrixByVec3(Vector3d Vec)
+{
+    Eigen::Matrix3d SSM;
+    SSM << 0.0, -Vec.z(), Vec.y(), Vec.z(), 0.0, -Vec.x(), -Vec.y(), Vec.x(), 0.0;
+    return SSM;
+}
+
+void MathFunctionLibrary::AssembleJacobianMatrix(Model* InModel)
+{
+    int TotalConstraintMatRow = 0;
+    vector<MatrixXd> AllConstraintRowMats;
+    for (int i = 0; i < InModel->Constraints.size(); i++)
     {
-        for (int j = 0; j < InModel->Components[i]->Constraints.size(); j++)
+        MatrixXd GMat1 = GetGMatrix(InModel->Constraints[i]->FirstComponent->EulerAngles);
+        MatrixXd BMat1 = GetEulerBMatrix(GMat1, InModel->Constraints[i]->FirstConstraintRelativeTranslation);
+        
+        MatrixXd GMat2 = GetGMatrix(InModel->Constraints[i]->SecondComponent->EulerAngles);
+        MatrixXd BMat2 = GetQuaternionBMatrix(GMat2, InModel->Constraints[i]->SecondConstraintRelativeTranslation);
+
+        int ConstraintMatCol, ConstraintMatRow = 0;
+        MatrixXd Cq1, Cq2;
+        if (InModel->Constraints[i]->ConstraintType == ConstraintTypeEnum::SphericalJoint)
         {
+            Cq1 = BMat1;
+            Cq2 = BMat2;
+            ConstraintMatCol = Cq1.cols();
+            ConstraintMatRow = Cq1.rows();
+            TotalConstraintMatRow += ConstraintMatRow;
+        }
+        else if (InModel->Constraints[i]->ConstraintType == ConstraintTypeEnum::CylindricalJoint)
+        {
+            MatrixXd DMati1 = GetDMatrix(InModel->Constraints[i]->FirstReferenceVectorList[0], RMat1);
+            MatrixXd DMatj1 = GetDMatrix(InModel->Constraints[i]->SecondReferenceVectorList[0], RMat2);
+            MatrixXd DMatj2 = GetDMatrix(InModel->Constraints[i]->SecondReferenceVectorList[1], RMat2);
             
+            MatrixXd Cqi1 = InModel->Constraints[i]->SecondReferenceVectorList[0].transpose() * DMati1;
+            MatrixXd Cqi2 = InModel->Constraints[i]->SecondReferenceVectorList[1].transpose() * DMati1;
+            MatrixXd Cqi3 = InModel->Constraints[i]->SecondReferenceVectorList[0].transpose() * BMat1;
+            MatrixXd Cqi4 = InModel->Constraints[i]->SecondReferenceVectorList[1].transpose() * BMat1;
+
+            MatrixXd Cqj1 = InModel->Constraints[i]->FirstReferenceVectorList[0].transpose() * DMatj1;
+            MatrixXd Cqj2 = InModel->Constraints[i]->FirstReferenceVectorList[0].transpose() * DMatj2;
+            MatrixXd Cqj3 = InModel->Constraints[i]->ComponentOffset.transpose() * DMatj1 - InModel->Constraints[i]->SecondReferenceVectorList[0].transpose()*BMat2;
+            MatrixXd Cqj4 = InModel->Constraints[i]->ComponentOffset.transpose() * DMatj2 - InModel->Constraints[i]->SecondReferenceVectorList[1].transpose()*BMat2;
+
+            ConstraintMatCol = Cqi1.cols();
+            ConstraintMatRow = Cqi1.rows() + Cqi2.rows() + Cqi3.rows() + Cqi4.rows();
+
+            Cq1.resize(4*ConstraintMatRow, ConstraintMatCol);
+            Cq2.resize(4*ConstraintMatRow, ConstraintMatCol);
+
+            Cq1 << Cqi1,
+                   Cqi2,
+                   Cqi3,
+                   Cqi4;
+
+            Cq2 << Cqj1,
+                   Cqj2,
+                   Cqj3,
+                   Cqj4;
+        }
+        MatrixXd RowConstraintMat(ConstraintMatRow, InModel->Components.size()*ConstraintMatCol);
+
+        for (int j = 0; j < InModel->Components.size(); j++)
+        {
+            if (InModel->Constraints[i]->FirstComponent == InModel->Components[j])
+            {
+                RowConstraintMat << Cq1;
+            }
+            else if (InModel->Constraints[i]->SecondComponent == InModel->Components[j])
+            {
+                RowConstraintMat << Cq2;
+            }
+            else
+            {
+                // Construct zero matrix
+                MatrixXd ZeroMatrix = MatrixXd::Zero(ConstraintMatRow, ConstraintMatCol);
+                RowConstraintMat << ZeroMatrix;
+            }
+        }
+        AllConstraintRowMats.push_back(RowConstraintMat);
+        TotalConstraintMatRow += ConstraintMatRow;
+    }
+    
+
+
+    if (AllConstraintRowMats.size() > 0)
+    {
+        InModel->CurrentJacobianMat.resize(TotalConstraintMatRow, AllConstraintRowMats[0].cols());
+        for (int i = 0; i < AllConstraintRowMats.size(); i++)
+        {
+            InModel->CurrentJacobianMat << AllConstraintRowMats[i];
         }
         
     }
-    
+}
+
+
+void MathFunctionLibrary::AssembleConstraintMatrix(Model* InModel)
+{
+    for (int i = 0; i < InModel->Constraints.size(); i++)
+    {
+        MatrixXd ConstraintMat;
+        if (InModel->Constraints[i]->ConstraintType == ConstraintTypeEnum::SphericalJoint)
+        {
+            ConstraintMat.resize(3, 1);
+            ConstraintMat = (InModel->Constraints[i]->FirstComponent->Position + InModel->Constraints[i]->FirstConstraintRelativeTranslation) - 
+                (InModel->Constraints[i]->SecondComponent->Position + InModel->Constraints[i]->SecondConstraintRelativeTranslation);
+        }
+        else if (InModel->Constraints[i]->ConstraintType == ConstraintTypeEnum::CylindricalJoint)
+        {
+            ConstraintMat.resize(4, 1);
+            ConstraintMat << InModel->Constraints[i]->FirstReferenceVectorList[0].transpose() * InModel->Constraints[i]->SecondReferenceVectorList[0];
+            ConstraintMat << InModel->Constraints[i]->FirstReferenceVectorList[0].transpose() * InModel->Constraints[i]->SecondReferenceVectorList[1];
+            ConstraintMat << InModel->Constraints[i]->SecondReferenceVectorList[0].transpose() * InModel->Constraints[i]->ComponentOffset;
+            ConstraintMat << InModel->Constraints[i]->SecondReferenceVectorList[1].transpose() * InModel->Constraints[i]->ComponentOffset;
+        }
+    }
+       
+}
+
+void MathFunctionLibrary::AssembleGamaMatrix(Model* InModel)
+{
+
 }
