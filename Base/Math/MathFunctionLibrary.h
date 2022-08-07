@@ -23,9 +23,11 @@ public:
 
     MatrixXd static GetQuaternionBMatrix(MatrixXd RMat, Vector3d JointTranslation);
 
-    MatrixXd static GetEulerBMatrix(MatrixXd GMat, Vector3d JointTranslation);
+    MatrixXd static GetEulerBMatrix(MatrixXd GMat, const double JointTranslation[3]);
 
     MatrixXd static GetDMatrix(Vector3d RefVec, MatrixXd RMat);
+
+    MatrixXd static GetEulerDMatrix(const Vector3d& ref_vec, const MatrixXd& g_mat);
 
     Eigen::Matrix3d static GetSkewSymmetricMatrixByVec3(Vector3d Vec);
 
