@@ -13,34 +13,25 @@ enum ComponentConstraintType
 {
     Drive,
     Fixed,
-    Constraint,
+    Constrainted,
 };
 
 class Component
 {
 public:
 
-    void UpdateComponentRelativeVectors();
-
-    void GetIndependentEulerJacobian(int TotalComponentNb);
-
-    int Id;
-
-    ComponentConstraintType ConstraintType = ComponentConstraintType::Constraint;
+    int component_nb;
 
     // Position in global coordinate
-    double Position[3] = {0.0, 0.0, 0.0};
+    double position[3] = {0.0, 0.0, 0.0};
 
-    double EulerAngles[3] = {0.0, 0.0, 0.0};
+    double euler_angles[3] = {0.0, 0.0, 0.0};
 
-    vector<int> IndependentCoords;
+    vector<int> independent_coords_;
 
-    double Coordinates[7] = {0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0};
+    int independent_coord_flags_;
 
-    // Position list of all joints attached, there maybe several joints belonged a single component
-    vector<Vector3d> JointTransList;
-    
-    vector<Constraint*> Constraints;
+    double coordinates_[6] = {0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
 
     Vector3d UpVector;
 

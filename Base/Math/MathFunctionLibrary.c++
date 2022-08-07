@@ -83,7 +83,7 @@ MatrixXd MathFunctionLibrary::GetQuaternionBMatrix(MatrixXd RMat, Vector3d Joint
     return BMat;
 }
 
-MatrixXd MathFunctionLibrary::GetEulerBMatrix(MatrixXd GMat, Vector3d JointTranslation)
+MatrixXd MathFunctionLibrary::GetEulerBMatrix(MatrixXd GMat, const double JointTranslation[3])
 {
     MatrixXd BMat(3, 6);
     return BMat;
@@ -97,6 +97,16 @@ MatrixXd MathFunctionLibrary::GetDMatrix(Vector3d RefVec, MatrixXd RMat)
     MatrixXd DMat(3,7);
     DMat << ZMat, ARMat;
     return DMat;
+}
+
+MatrixXd MathFunctionLibrary::GetEulerDMatrix(const Vector3d& ref_vec, const MatrixXd& g_mat)
+{
+    MatrixXd ass_mat = MathFunctionLibrary::GetSkewSymmetricMatrixByVec3(ref_vec);
+    MatrixXd ar_mat = -ass_mat*g_mat;
+    MatrixXd zero_mat = MatrixXd::Zero(3, 3);
+    MatrixXd d_mat(3, 6);
+    d_mat << zero_mat, ar_mat;
+    return d_mat;
 }
 
 Matrix3d MathFunctionLibrary::GetSkewSymmetricMatrixByVec3(Vector3d Vec)
