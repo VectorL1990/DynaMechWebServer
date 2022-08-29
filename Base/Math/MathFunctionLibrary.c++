@@ -116,6 +116,13 @@ Matrix3d MathFunctionLibrary::GetSkewSymmetricMatrixByVec3(Vector3d Vec)
     return SSM;
 }
 
+Matrix3d MathFunctionLibrary::GetDerivationOfReferenceVector(Constraint* constraint)
+{
+    MatrixXd g_mat = GetGMatrix(constraint->drive_component->coordinates_[3], constraint->);
+    MatrixXd d_mat = GetEulerDMatrix();
+    
+}
+
 void MathFunctionLibrary::AssembleJacobianMatrix(Model* InModel)
 {
     int TotalConstraintMatRow = 0;

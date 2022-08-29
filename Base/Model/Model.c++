@@ -3,9 +3,9 @@
 #include "../Math/MathFunctionLibrary.h"
 
 
-void Model::AssignComponentQ(const MatrixXd& input_qs)
+void Model::AssignComponentQ(const VectorXd& input_qs)
 {
-    for (int i = 0; i < input_qs.rows(); i++)
+    for (int i = 0; i < input_qs.size(); i++)
     {
         int component_nb = i / NormalCoordDimension;
         int coordinate_nb = i % NormalCoordDimension;
@@ -13,14 +13,14 @@ void Model::AssignComponentQ(const MatrixXd& input_qs)
     }    
 }
 
-void Model::AssembleComponentQs(MatrixXd& output_qs)
+void Model::AssembleComponentQs(VectorXd& output_qs)
 {
     output_qs.resize(NormalCoordDimension*components_.size());
     for (int i = 0; i < output_qs.rows(); i++)
     {
         int component_nb = i / NormalCoordDimension;
         int coordinate_nb = i % NormalCoordDimension;
-        output_qs(i, 0) = components_[component_nb]->coordinates_[coordinate_nb];
+        output_qs(i) = components_[component_nb]->coordinates_[coordinate_nb];
     }
     
 }
@@ -28,6 +28,29 @@ void Model::AssembleComponentQs(MatrixXd& output_qs)
 void Model::AssembleSingleComponentIndepedentCoordsJacobianMatrix(int component_nb, int& current_assemble_row, MatrixXd& out_matrix)
 {
     Component* component = components_[component_nb];
+    // For example conversion matrix from local to global coordinates is as below:
+    // [Ct*Cq - St*Cp*Sq, -Ct*Sq - St*Cp*Cq,  St*Sp ]   [T]
+    // ----------------------------------------------------
+    // [St*Cq + Ct*Cp*Sq, -St*Sq + Ct*Cp*Cq, -Ct*Sp ] * [P]
+    // [Sp*Sq,             Sp*Cq,             Cp    ]   [Q]
+    // If the first local coordinate is constrainted, then only the first row is required,
+
+    // (Ct*Cq - St*Cp*Sq)*T + (-Ct*Sq - St*Cp*Cq)*P + (St*Sp)*Q = t
+
+    // constraint matrix is t - deltaT*w - t0 = 0, in global system it becomes:
+
+    // A*(t - deltaT*w - t0) = 0, derivation of 1st coordinate of this equation should be:
+
+    // (-St*Cq - Ct*Cp*Sq)*T + (St*Cq - Ct*Cp*Cq)*P + Ct*Sp*Q
+
+    // derivation of 2rd coordinate shouble be:
+
+    // (St*Sp*Sq)*T + St*Sp*Cq*P + St*Cp*Q
+
+    // derivation of 3rd coordinate shouble be:
+
+    // (-Ct*Sq - St*Cp*Cq)*T + (-Ct*Cq + St*Cp*Sq)*P
+
     // For example If indeponent coordinates includes angle_1 and andgle_2
     // The Jacobian matrix should be like
     // [0, 0, 0, ... cn1, cn2, cn3, 0,   0,   0,   ... 0, 0, 0]
@@ -93,9 +116,16 @@ void Model::AssembleSingleComponentIndepedentCoordsJacobianMatrix(int component_
     }
 }
 
-void Model::AssembleConstraintJacobianMatrix(MatrixXd& out_matrix)
+void Model::AssembleAllIndependentCoordsJacobianMatrix(int& current_assemble_row, MatrixXd& out_matrix)
 {
-    int current_assemble_row = 0;
+    for (int i = 0; i < components_.size(); i++)
+    {
+        AssembleSingleComponentIndepedentCoordsJacobianMatrix(components_[i]->component_nb, current_assemble_row, out_matrix);
+    }
+}
+
+void Model::AssembleConstraintJacobianMatrix(int& current_assemble_row, MatrixXd& out_matrix)
+{
     for (int i = 0; i < constraints_.size(); i++)
     {
         MatrixXd g_mat_1 = MathFunctionLibrary::GetGMatrix(constraints_[i]->drive_component->euler_angles);
@@ -184,4 +214,46 @@ void Model::AssembleConstraintMatrix(MatrixXd& out_matrix)
 
     }
     
+}
+
+void Model::AssembleGamaMatrix(MatrixXd& out_matrix)
+{
+    for (int i = 0; i < constraints_.size(); i++)
+    {
+        /* code */
+    }
+    
+}
+
+void Model::KineticAnalysis()
+{
+    VectorXd q_array(components_.size() * NormalCoordDimension);
+
+    MatrixXd jacobian_mat(components_.size() * NormalCoordDimension, components_.size() * NormalCoordDimension);
+    MatrixXd constraint_mat(components_.size() * NormalCoordDimension, 1);
+    int current_loop = 0;
+    double t = 0.0;
+    while (current_loop <= MaxKineticAnalysisLoopTime)
+    {
+        AssembleComponentQs(q_array);
+
+        int current_assemble_row = 0;
+        AssembleConstraintJacobianMatrix(current_assemble_row, jacobian_mat);
+        AssembleAllIndependentCoordsJacobianMatrix(current_assemble_row, jacobian_mat);
+
+        AssembleConstraintMatrix(constraint_mat);
+
+        VectorXd delta_q = jacobian_mat.ldlt().solve(-constraint_mat);
+
+        if (delta_q.norm()<=IterDisplacementEpsilon || constraint_mat.norm() <= ConstraintEpsilon)
+        {
+            q_array += delta_q;
+            AssignComponentQ(q_array);
+        }
+        else
+        {
+            // Calculate velocity array and acceleration array
+            // 
+        }
+    }
 }
