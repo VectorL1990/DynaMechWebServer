@@ -31,6 +31,8 @@ public:
 
     Eigen::Matrix3d static GetSkewSymmetricMatrixByVec3(Vector3d Vec);
 
+    Matrix3d static GetDerivationOfReferenceVector(Constraint *constraint);
+
     void static AssembleJacobianMatrix(Model* InModel);
 
     void static AssembleConstraintMatrix(Model* InModel);
